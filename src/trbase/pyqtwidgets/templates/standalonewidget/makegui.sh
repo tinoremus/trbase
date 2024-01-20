@@ -1,0 +1,1 @@
+pyuic6 -x ui_widget_template.ui -o ui_widget_template.py

@@ -1,0 +1,1 @@
+pyuic6 -x ui_exampletree.ui -o ui_exampletree.py
