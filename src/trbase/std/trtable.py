@@ -141,7 +141,11 @@ class TrTable(TrObject):
                         ws.write(row_id, col_id, '\n'.join(export_list))
                 else:
                     if isinstance(cell, str):
-                        ws.write(row_id, col_id, cell)
+                        if cell.strip().startswith('$'):
+                            value = float(cell.replace('$', '').replace(' ', ''))
+                            ws.write(row_id, col_id, value, int_format)
+                        else:
+                            ws.write(row_id, col_id, cell)
                     elif isinstance(cell, int):
                         ws.write(row_id, col_id, cell, int_format)
                     elif isinstance(cell, float):
