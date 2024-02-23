@@ -32,6 +32,21 @@ class TrItemTreeItem(Base):
                 f"level={self.level!r}, position={self.position!r}, expanded={self.expanded!r})")
 
 
+def find_item_in_tree_by_id(start_item, select_id) -> QTreeWidgetItem or None:
+    tree_item = None
+    for i in range(start_item.childCount()):
+        item = start_item.child(i)
+        item_identity = item.data(0, Qt.ItemDataRole.UserRole).id
+        if item_identity == select_id:
+            tree_item = item
+            break
+        else:
+            tree_item = find_item_in_tree_by_id(item, select_id)
+        if tree_item is not None:
+            break
+    return tree_item
+
+
 class TrItemTreeWidget(QTreeWidget):
     def __init__(self, parent=None, sqlite_file_name: str = 'trtreeitemwidget'):
         super().__init__(parent)
@@ -102,7 +117,7 @@ class TrItemTreeWidget(QTreeWidget):
         data = ci.data(0, Qt.ItemDataRole.UserRole) if ci is not None else None
         return data, ci
 
-    def show_items(self):
+    def show_items(self, last_id: int or None = None):
         self.clear()
         self.disconnect_triggers()
         with Session(self.engine) as session:
@@ -110,6 +125,12 @@ class TrItemTreeWidget(QTreeWidget):
             items = [item for item in session.scalars(stmt)]
             self.__add_tree_children__(session=session, root=self.invisibleRootItem(), items=items)
         self.connect_triggers()
+        self.repaint()
+
+        last_item = find_item_in_tree_by_id(self.invisibleRootItem(), last_id) if last_id is not None else None
+        print(f' last item = {last_item}')
+        if last_item is not None:
+            self.setCurrentItem(last_item)
 
     def __add_tree_children__(self, session, root: QTreeWidgetItem, items: List[TrItemTreeItem]):
         for item in items:
@@ -148,19 +169,18 @@ class TrItemTreeWidget(QTreeWidget):
         with Session(self.engine) as session:
             session.add_all([new_item])
             session.commit()
-        self.show_items()
+            self.show_items(last_id=new_item.id)
 
     def edit_item_name(self, node: QTreeWidgetItem):
         text, ok = QInputDialog.getText(self, 'Edit Item', 'Name:', text=node.text(0))
+        data = node.data(0, Qt.ItemDataRole.UserRole)
         if ok:
-            data = node.data(0, Qt.ItemDataRole.UserRole)
             with Session(self.engine) as session:
                 stmt = select(TrItemTreeItem).where(TrItemTreeItem.id == data.id)
                 item = session.scalars(stmt).one()
                 item.name = text
                 session.commit()
-            node.setText(0, text)
-            node.setExpanded(True)
+        self.show_items(last_id=data.id)
 
     def update_item_expanded(self, node: QTreeWidgetItem):
         data = node.data(0, Qt.ItemDataRole.UserRole)
@@ -183,10 +203,7 @@ class TrItemTreeWidget(QTreeWidget):
                 print('delete: {}'.format(item))
                 session.delete(item)
             session.commit()
-        self.show_items()
-
-    def add_child_item(self):
-        pass
+        self.show_items(last_id=item.parent_id)
 
     def move_item_up(self):
         item, node = self.get_current_item()
@@ -214,7 +231,7 @@ class TrItemTreeWidget(QTreeWidget):
             select_item.position -= 1
             select_above_item.position += 1
             session.commit()
-        self.show_items()
+        self.show_items(last_id=item.id)
 
     def move_item_down(self):
         item, node = self.get_current_item()
@@ -247,7 +264,7 @@ class TrItemTreeWidget(QTreeWidget):
             select_item.position += 1
             select_below_item.position -= 1
             session.commit()
-        self.show_items()
+        self.show_items(last_id=item.id)
 
     def indent_item(self):
         item, node = self.get_current_item()
@@ -278,7 +295,7 @@ class TrItemTreeWidget(QTreeWidget):
             select_item.parent_id = select_above_item.id
             select_item.position = max(children_positions) + 1 if children_positions else 0
             session.commit()
-        self.show_items()
+        self.show_items(last_id=item.id)
 
     def outdent_item(self):
         item, node = self.get_current_item()
@@ -303,7 +320,7 @@ class TrItemTreeWidget(QTreeWidget):
             select_item.parent_id = parent_item.parent_id
             select_item.position = max(children_positions) + 1 if children_positions else 0
             session.commit()
-        self.show_items()
+        self.show_items(last_id=item.id)
 
 
 # TEST ===============================================================================================================
@@ -329,5 +346,4 @@ if __name__ == '__main__':
 
 
 if __name__ == '__main__':
-
     tt = TrItemTreeWidget()
