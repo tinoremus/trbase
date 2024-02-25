@@ -1,16 +1,18 @@
 import sys
 from typing import List
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTreeWidget, QMenu, QTreeWidgetItem, QInputDialog, QLineEdit
+from PyQt6.QtGui import QAction, QIcon, QPixmap
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTreeWidget, QMenu, QTreeWidgetItem, QInputDialog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from sqlalchemy import String, Integer
+from sqlalchemy import String, Integer, LargeBinary
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from trbase.pyqtwidgets.helper import add_parent_to_qttreewidget
+from dataclasses import dataclass
+import pickle
 
 
 class Base(DeclarativeBase):
@@ -26,10 +28,12 @@ class TrItemTreeItem(Base):
     level: Mapped[int]
     position: Mapped[int]
     expanded: Mapped[bool]
+    object: Mapped[bytes]
 
     def __repr__(self) -> str:
-        return (f"TrItemTreeItem(id={self.id!r}, name={self.name!r}, parent_id={self.parent_id!r} " +
-                f"level={self.level!r}, position={self.position!r}, expanded={self.expanded!r})")
+        return (f"TrItemTreeItem(id={self.id!r}, name={self.name!r}, parent_id={self.parent_id!r}, " +
+                f"level={self.level!r}, position={self.position!r}, expanded={self.expanded!r}, " +
+                f"object={self.object})")
 
 
 def find_item_in_tree_by_id(start_item, select_id) -> QTreeWidgetItem or None:
@@ -45,6 +49,12 @@ def find_item_in_tree_by_id(start_item, select_id) -> QTreeWidgetItem or None:
         if tree_item is not None:
             break
     return tree_item
+
+
+@dataclass()
+class TrItemTreeObject:
+    name: str
+    icon: QIcon()
 
 
 class TrItemTreeWidget(QTreeWidget):
@@ -78,6 +88,9 @@ class TrItemTreeWidget(QTreeWidget):
         self.__add_action_trigger__(action_add_item, self.add_item)
         action_remove_item = menu.addAction("Remove item")
         self.__add_action_trigger__(action_remove_item, self.remove_item)
+        separator = QAction(self)
+        separator.setSeparator(True)
+        menu.addAction(separator)
 
         # action_add_child_item = menu.addAction("Add child item")
         # self.__add_action_trigger__(action_add_child_item, self.add_child_item)
@@ -86,10 +99,26 @@ class TrItemTreeWidget(QTreeWidget):
         self.__add_action_trigger__(action_move_up, self.move_item_up)
         action_move_down = menu.addAction("Move down")
         self.__add_action_trigger__(action_move_down, self.move_item_down)
+        separator = QAction(self)
+        separator.setSeparator(True)
+        menu.addAction(separator)
+
         action_indent_item = menu.addAction("Indent item")
         self.__add_action_trigger__(action_indent_item, self.indent_item)
         action_outdent_item = menu.addAction("Outdent item")
         self.__add_action_trigger__(action_outdent_item, self.outdent_item)
+
+        objects = self.get_item_objects()
+        if objects:
+            separator = QAction(self)
+            separator.setSeparator(True)
+            menu.addAction(separator)
+            sub_menu_objects = menu.addMenu('Select Object Type')
+            obj_action = sub_menu_objects.addAction('None')
+            self.__add_action_trigger__(obj_action, self.__assign_object_to_item__)
+            for obj in objects:
+                obj_action = sub_menu_objects.addAction(obj.name)
+                self.__add_action_trigger__(obj_action, self.__assign_object_to_item__)
 
         return menu
 
@@ -98,6 +127,29 @@ class TrItemTreeWidget(QTreeWidget):
         """ helper function for adding context menu functions to action"""
         # noinspection PyUnresolvedReferences
         action.triggered.connect(fun)
+
+    @staticmethod
+    def get_item_objects() -> List[TrItemTreeObject]:
+        objects = [
+            TrItemTreeObject(name='Option 1 Object', icon=QIcon("icon.jpg")),
+            TrItemTreeObject(name='Option 2 Object', icon=QIcon()),
+        ]
+        return objects
+
+    def __assign_object_to_item__(self, *args):
+        item, node = self.get_current_item()
+        if node is None:
+            return
+        # noinspection PyUnresolvedReferences
+        identifier = self.sender().text() if self.sender() is not None else None
+        objects = [obj for obj in self.get_item_objects() if obj.name == identifier]
+        obj = objects[0] if objects else bytes()
+        # node.setIcon(0, QIcon("icon.jpg")) if objects else node.setIcon(0, QIcon())
+        with Session(self.engine) as session:
+            stmt = select(TrItemTreeItem).where(TrItemTreeItem.id == item.id)
+            item = session.scalars(stmt).one()
+            item.object = pickle.dumps(obj)
+            session.commit()
 
     def connect_triggers(self):
         # noinspection PyUnresolvedReferences
@@ -128,7 +180,6 @@ class TrItemTreeWidget(QTreeWidget):
         self.repaint()
 
         last_item = find_item_in_tree_by_id(self.invisibleRootItem(), last_id) if last_id is not None else None
-        print(f' last item = {last_item}')
         if last_item is not None:
             self.setCurrentItem(last_item)
 
@@ -150,6 +201,18 @@ class TrItemTreeWidget(QTreeWidget):
                 ids += self.__get_all_children__(session, [child_item])
         return ids
 
+    @staticmethod
+    def get_new_item(parent_item: TrItemTreeItem, pos: int) -> TrItemTreeItem:
+        new_item = TrItemTreeItem(
+            name='New Item',
+            parent_id=parent_item.id if parent_item is not None else -1,
+            level=parent_item.level + 1 if parent_item is not None else 0,
+            position=pos,
+            expanded=True,
+            object=bytes(),
+        )
+        return new_item
+
     def add_item(self, dkn: bool, name: str = 'New Item'):
         parent_item, _ = self.get_current_item()
         with Session(self.engine) as session:
@@ -159,13 +222,7 @@ class TrItemTreeWidget(QTreeWidget):
                 stmt = select(TrItemTreeItem).where(TrItemTreeItem.parent_id.is_(-1))
             items = [item for item in session.scalars(stmt)]
         new_pos = max([item.position for item in items]) + 1 if items else 0
-        new_item = TrItemTreeItem(
-            name=name,
-            parent_id=parent_item.id if parent_item is not None else -1,
-            level=parent_item.level + 1 if parent_item is not None else 0,
-            position=new_pos,
-            expanded=True,
-        )
+        new_item = self.get_new_item(parent_item=parent_item, pos=new_pos)
         with Session(self.engine) as session:
             session.add_all([new_item])
             session.commit()
@@ -200,7 +257,6 @@ class TrItemTreeWidget(QTreeWidget):
             stmt = select(TrItemTreeItem).where(TrItemTreeItem.id.in_(remove_ids))
             items = [item for item in session.scalars(stmt)]
             for item in items:
-                print('delete: {}'.format(item))
                 session.delete(item)
             session.commit()
         self.show_items(last_id=item.parent_id)
