@@ -1,7 +1,7 @@
 import sys
 from typing import List
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QIcon, QPixmap
+from PyQt6.QtCore import Qt, QByteArray, QDataStream, QIODevice
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QColor
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTreeWidget, QMenu, QTreeWidgetItem, QInputDialog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -28,6 +28,7 @@ class TrItemTreeItem(Base):
     level: Mapped[int]
     position: Mapped[int]
     expanded: Mapped[bool]
+    icon: Mapped[bytes]
     object: Mapped[bytes]
 
     def __repr__(self) -> str:
@@ -51,10 +52,31 @@ def find_item_in_tree_by_id(start_item, select_id) -> QTreeWidgetItem or None:
     return tree_item
 
 
+class PickableQPixmap(QPixmap):
+    def __reduce__(self):
+        return type(self), (), self.__getstate__()
+
+    def __getstate__(self):
+        ba = QByteArray()
+        stream = QDataStream(ba, QIODevice.OpenModeFlag.WriteOnly)
+        stream << self
+        return ba
+
+    def __setstate__(self, ba):
+        stream = QDataStream(ba, QIODevice.OpenModeFlag.ReadOnly)
+        stream >> self
+
+
+def get_default_pickable_pixmap() -> PickableQPixmap:
+    pm = QPixmap(50, 50)
+    pm.fill(QColor("green"))
+    return PickableQPixmap(pm)
+
+
 @dataclass()
 class TrItemTreeObject:
     name: str
-    icon: QIcon()
+    icon: PickableQPixmap or None
 
 
 class TrItemTreeWidget(QTreeWidget):
@@ -130,9 +152,15 @@ class TrItemTreeWidget(QTreeWidget):
 
     @staticmethod
     def get_item_objects() -> List[TrItemTreeObject]:
+        red_icon = QPixmap(50, 50)
+        red_icon.fill(QColor("red"))
+
+        blue_icon = QPixmap(50, 50)
+        blue_icon.fill(QColor("blue"))
+
         objects = [
-            TrItemTreeObject(name='Option 1 Object', icon=QIcon("icon.jpg")),
-            TrItemTreeObject(name='Option 2 Object', icon=QIcon()),
+            TrItemTreeObject(name='Option 1 Object', icon=PickableQPixmap(red_icon)),
+            TrItemTreeObject(name='Option 2 Object', icon=PickableQPixmap(blue_icon)),
         ]
         return objects
 
@@ -143,13 +171,13 @@ class TrItemTreeWidget(QTreeWidget):
         # noinspection PyUnresolvedReferences
         identifier = self.sender().text() if self.sender() is not None else None
         objects = [obj for obj in self.get_item_objects() if obj.name == identifier]
-        obj = objects[0] if objects else bytes()
-        # node.setIcon(0, QIcon("icon.jpg")) if objects else node.setIcon(0, QIcon())
+        obj = objects[0] if objects else None
         with Session(self.engine) as session:
             stmt = select(TrItemTreeItem).where(TrItemTreeItem.id == item.id)
             item = session.scalars(stmt).one()
-            item.object = pickle.dumps(obj)
+            item.object = pickle.dumps(obj) if obj is not None else b''
             session.commit()
+            self.show_items(last_id=item.id)
 
     def connect_triggers(self):
         # noinspection PyUnresolvedReferences
@@ -186,6 +214,12 @@ class TrItemTreeWidget(QTreeWidget):
     def __add_tree_children__(self, session, root: QTreeWidgetItem, items: List[TrItemTreeItem]):
         for item in items:
             node = add_parent_to_qttreewidget(parent=root, column=0, title=item.name, data=item, expanded=item.expanded)
+            # add icon
+            if item.object:
+                obj = pickle.loads(item.object)
+                icon = QIcon(obj.icon)
+                node.setIcon(0, icon)
+
             stmt = select(TrItemTreeItem).order_by(TrItemTreeItem.position).where(TrItemTreeItem.parent_id.is_(item.id))
             children = [item for item in session.scalars(stmt)]
             if children:
@@ -209,6 +243,7 @@ class TrItemTreeWidget(QTreeWidget):
             level=parent_item.level + 1 if parent_item is not None else 0,
             position=pos,
             expanded=True,
+            icon=bytes(),
             object=bytes(),
         )
         return new_item
