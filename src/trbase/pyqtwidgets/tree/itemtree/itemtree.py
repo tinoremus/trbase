@@ -197,6 +197,13 @@ class TrItemTreeWidget(QTreeWidget):
         data = ci.data(0, Qt.ItemDataRole.UserRole) if ci is not None else None
         return data, ci
 
+    def get_current_object(self) -> TrItemTreeObject or None:
+        item, _ = self.get_current_item()
+        if item.object:
+            return pickle.loads(item.object)
+        else:
+            return
+
     def show_items(self, last_id: int or None = None):
         self.clear()
         self.disconnect_triggers()
