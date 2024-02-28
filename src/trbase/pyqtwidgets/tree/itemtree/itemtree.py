@@ -319,15 +319,19 @@ class TrItemTreeWidget(QTreeWidget):
             )
             select_item = session.scalars(stmt1).one()
 
-            stmt2 = select(TrItemTreeItem).where(
-                (TrItemTreeItem.position.is_(item.position - 1) &
+            stmt2 = select(TrItemTreeItem).where(TrItemTreeItem.level.is_(item.level))
+            positions = sorted([item.position for item in session.scalars(stmt2)])
+            up_position = positions[positions.index(item.position) - 1]
+
+            stmt3 = select(TrItemTreeItem).where(
+                (TrItemTreeItem.position.is_(up_position) &
                  TrItemTreeItem.parent_id.is_(parent_id) &
                  TrItemTreeItem.level.is_(item.level))
             )
-            select_above_item = session.scalars(stmt2).one()
+            select_above_item = session.scalars(stmt3).one()
 
-            select_item.position -= 1
-            select_above_item.position += 1
+            select_item.position = up_position
+            select_above_item.position = item.position
             session.commit()
         self.show_items(last_id=item.id)
 
@@ -352,15 +356,19 @@ class TrItemTreeWidget(QTreeWidget):
             )
             select_item = session.scalars(stmt1).one()
 
-            stmt2 = select(TrItemTreeItem).where(
-                (TrItemTreeItem.position.is_(item.position + 1) &
+            stmt2 = select(TrItemTreeItem).where(TrItemTreeItem.level.is_(item.level))
+            positions = sorted([item.position for item in session.scalars(stmt2)])
+            down_position = positions[positions.index(item.position) + 1]
+
+            stmt3 = select(TrItemTreeItem).where(
+                (TrItemTreeItem.position.is_(down_position) &
                  TrItemTreeItem.parent_id.is_(parent_id) &
                  TrItemTreeItem.level.is_(item.level))
             )
-            select_below_item = session.scalars(stmt2).one()
+            select_below_item = session.scalars(stmt3).one()
 
-            select_item.position += 1
-            select_below_item.position -= 1
+            select_item.position = down_position
+            select_below_item.position = item.position
             session.commit()
         self.show_items(last_id=item.id)
 
@@ -380,14 +388,19 @@ class TrItemTreeWidget(QTreeWidget):
             )
             select_item = session.scalars(stmt1).one()
 
-            stmt2 = select(TrItemTreeItem).where(
-                (TrItemTreeItem.position.is_(item.position - 1) &
+            stmt2 = select(TrItemTreeItem).where(TrItemTreeItem.level.is_(item.level))
+            positions = sorted([item.position for item in session.scalars(stmt2)])
+            up_position = positions[positions.index(item.position) - 1]
+
+            stmt3 = select(TrItemTreeItem).where(
+                (TrItemTreeItem.position.is_(up_position) &
                  TrItemTreeItem.parent_id.is_(parent_id) &
                  TrItemTreeItem.level.is_(item.level))
             )
-            select_above_item = session.scalars(stmt2).one()
-            stmt3 = select(TrItemTreeItem).where(TrItemTreeItem.parent_id.is_(select_above_item.id))
-            children_positions = [i.position for i in session.scalars(stmt3)]
+            select_above_item = session.scalars(stmt3).one()
+
+            stmt4 = select(TrItemTreeItem).where(TrItemTreeItem.parent_id.is_(select_above_item.id))
+            children_positions = [i.position for i in session.scalars(stmt4)]
 
             select_item.level += 1
             select_item.parent_id = select_above_item.id
