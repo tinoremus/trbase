@@ -2,12 +2,12 @@ import sys
 from typing import List
 from PyQt6.QtCore import Qt, QByteArray, QDataStream, QIODevice
 from PyQt6.QtGui import QAction, QIcon, QPixmap, QColor
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QTreeWidget, QMenu, QTreeWidgetItem, QInputDialog
+from PyQt6.QtWidgets import QTreeWidget, QMenu, QTreeWidgetItem, QInputDialog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from sqlalchemy import String, Integer, LargeBinary
+from sqlalchemy import String, Integer
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from trbase.pyqtwidgets.helper import add_parent_to_qttreewidget
@@ -433,28 +433,11 @@ class TrItemTreeWidget(QTreeWidget):
             session.commit()
         self.show_items(last_id=item.id)
 
-
-# TEST ===============================================================================================================
-class ExampleWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.resize(300, 300)
-        self.setWindowTitle("TreeItem Widget")
-
-        layout = QVBoxLayout(self)
-        self.setLayout(layout)
-
-        lw = TrItemTreeWidget(self)
-        # lw.add_item(False, name='TEST 1')
-        layout.addWidget(lw)
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    gui = ExampleWidget()
-    gui.show()
-    sys.exit(app.exec())
-
-
-if __name__ == '__main__':
-    tt = TrItemTreeWidget()
+    def update_item(self, item: TrItemTreeItem, obj: any):
+        # node.
+        with Session(self.engine) as session:
+            stmt = select(TrItemTreeItem).where(TrItemTreeItem.id == item.id)
+            entry = session.scalars(stmt).one()
+            entry.object = pickle.dumps(obj)
+            session.commit()
+        self.show_items(last_id=item.id)

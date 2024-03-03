@@ -98,7 +98,6 @@ class DataclassEditWidget(QWidget):
             self.dce.obj.__setattr__(item.name, item.value)
         # noinspection PyUnresolvedReferences
         self.config_update_signal.emit()
-        ic(self.dce.obj)
 
     def __get_handle_by_pb_name__(self, pb_name):
         handles = [item.handle for item in self.dce.editable_items if item.name == pb_name]

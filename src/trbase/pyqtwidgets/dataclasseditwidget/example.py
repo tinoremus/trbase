@@ -142,9 +142,8 @@ class ExampleWidget(QWidget):
         layout = QHBoxLayout(self)
         self.setLayout(layout)
 
-        lw = DataclassEditWidget(get_editable_example())
-        # lw.add_item(False, name='TEST 1')
-        layout.addWidget(lw)
+        dew = DataclassEditWidget(get_editable_example())
+        layout.addWidget(dew)
 
 
 if __name__ == '__main__':
