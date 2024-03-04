@@ -21,4 +21,4 @@ class Templates(Enum):
     VerticalSpacer = 17
     TableStatic = 18
     TableEdit = 19
-
+    CurrencySpinBox = 20

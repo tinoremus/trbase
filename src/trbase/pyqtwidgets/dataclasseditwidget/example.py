@@ -86,13 +86,14 @@ def get_editable_example() -> DataclassEditable:
     house_editable.add_editable_value(
         name='occupants',
         value=house.occupants,
-        template=Templates.SpinBox
+        template=Templates.SpinBox,
+        options={'min_max': [0, 100], 'prefix': '$', 'separate': False},
     )
     house_editable.add_editable_value(
         name='area',
         value=house.area,
         template=Templates.DoubleSpinBox,
-        options=[0, 9999999]
+        options={'min_max': [0, 100], 'prefix': '$', 'separate': False, 'decimals': 2},
     )
     house_editable.add_editable_value(
         name='occupied',
@@ -109,27 +110,29 @@ def get_editable_example() -> DataclassEditable:
     #     value=house.people,
     #     template=Templates.ListStatic
     # )
-    house_editable.add_editable_value(
-        name='people',
-        value=house.people,
-        template=Templates.ListEdit
-    )
+    # house_editable.add_editable_value(
+    #     name='people',
+    #     value=house.people,
+    #     template=Templates.ListEdit
+    # )
     # house_editable.add_editable_value(
     #     name='history',
     #     value=house.history,
     #     template=Templates.TableStatic
     # )
-    house_editable.add_editable_value(
-        name='options',
-        value=house.options,
-        template=Templates.CheckBoxGroup,
-        options={'rows': 1, 'columns': 3}
-    )
-    house_editable.add_editable_value(
-        name='history',
-        value=house.history,
-        template=Templates.TableEdit
-    )
+    # house_editable.add_editable_value(
+    #     name='options',
+    #     value=house.options,
+    #     template=Templates.CheckBoxGroup,
+    #     options={'rows': 1, 'columns': 3}
+    # )
+    # house_editable.add_editable_value(
+    #     name='history',
+    #     value=house.history,
+    #     template=Templates.TableEdit
+    # )
+    house_editable.add_vertical_spacer()
+
     return house_editable
 
 

@@ -39,6 +39,10 @@ class DataclassEditable:
         )
         self.editable_items.append(item)
 
+    def add_vertical_spacer(self):
+        item = DataclassEditableItem(Templates.VerticalSpacer, name='Spacer')
+        self.editable_items.append(item)
+
 
 class DataclassEditWidget(QWidget):
     config_update_signal = pyqtSignal()
@@ -79,6 +83,8 @@ class DataclassEditWidget(QWidget):
                 item.value = int(item.handle.value())
             elif item.template == Templates.DoubleSpinBox:
                 item.value = float(item.handle.value())
+            elif item.template == Templates.CurrencySpinBox:
+                item.value = int(item.handle.value() * 100)
             elif item.template == Templates.CheckBox:
                 item.value = True if item.handle.checkState().value else False
             elif item.template == Templates.CheckBoxGroup:
@@ -110,8 +116,7 @@ class DataclassEditWidget(QWidget):
             return
         # options = QFileDialog.Option.Options()
         # options |= QFileDialog.DontUseNativeDialog
-        path = QFileDialog.getExistingDirectory(
-            self, "Select Folder", self.last_selection_path)  # options=options
+        path = QFileDialog.getExistingDirectory(self, "Select Folder", self.last_selection_path)  # options=options
         if not path:
             return
         self.last_selection_path = path
@@ -193,10 +198,13 @@ class DataclassEditWidget(QWidget):
                 label, hl = self.__setup_date_time_edit__(item_info)
                 row = self.__add_widget_to_grid__(grid, label, hl, row)
             elif item_info.template == Templates.SpinBox:
-                label, _ = self.__setup_spin_box__(item_info)
+                label = self.__setup_spin_box__(item_info)
                 row = self.__add_widget_to_grid__(grid, label, item_info.handle, row)
             elif item_info.template == Templates.DoubleSpinBox:
                 label, _ = self.__setup_double_spin_box__(item_info)
+                row = self.__add_widget_to_grid__(grid, label, item_info.handle, row)
+            elif item_info.template == Templates.CurrencySpinBox:
+                label, _ = self.__setup_currency_spin_box__(item_info)
                 row = self.__add_widget_to_grid__(grid, label, item_info.handle, row)
             elif item_info.template == Templates.CheckBox:
                 label = self.__setup_check_box__(item_info)
@@ -219,6 +227,9 @@ class DataclassEditWidget(QWidget):
             elif item_info.template == Templates.TableEdit:
                 label = self.__setup_table_edit__(item_info)
                 row = self.__add_widget_to_grid__(grid, label, item_info.handle, row)
+            elif item_info.template == Templates.VerticalSpacer:
+                label, handle = self.__setup_vertical_spacer__()
+                row = self.__add_widget_to_grid__(grid, label, handle, row)
             else:
                 print(f'not implemented yet: {item_info.template}')
 
@@ -353,24 +364,51 @@ class DataclassEditWidget(QWidget):
     def __setup_spin_box__(self, item: DataclassEditableItem):
         label = QLabel(self.__get_title__(item.name))
         handle = QSpinBox()
-        if item.options:
-            if len(item.options) >= 2:
-                handle.setRange(item.options[0], item.options[1])
-        handle.setValue(int(item.value))
         handle.setEnabled(item.editable)
+        if isinstance(item.options, dict):
+            min_max = item.options['min_max'] if 'min_max' in item.options else [0, 10]
+            handle.setRange(min_max[0], min_max[1])
+            prefix = item.options['prefix'] if 'prefix' in item.options else ''
+            handle.setPrefix(prefix)
+            separate = item.options['separate'] if 'separate' in item.options else False
+            handle.setGroupSeparatorShown(separate)
+        handle.setValue(int(item.value))
         item.handle = handle
-        return label, handle
+        return label
 
     def __setup_double_spin_box__(self, item: DataclassEditableItem):
         label = QLabel(self.__get_title__(item.name))
 
         handle = QDoubleSpinBox()
-        if item.options:
-            if len(item.options) >= 2:
-                handle.setRange(item.options[0], item.options[1])
-            if len(item.options) >= 3:
-                handle.setDecimals(item.options[2])
+        if isinstance(item.options, dict):
+            min_max = item.options['min_max'] if 'min_max' in item.options else [0, 10]
+            handle.setRange(min_max[0], min_max[1])
+            decimals = item.options['decimals'] if 'decimals' in item.options else 0
+            handle.setDecimals(decimals)
+            prefix = item.options['prefix'] if 'prefix' in item.options else ''
+            handle.setPrefix(prefix)
+            separate = item.options['separate'] if 'separate' in item.options else False
+            handle.setGroupSeparatorShown(separate)
         handle.setValue(float(item.value))
+        handle.setEnabled(item.editable)
+        item.handle = handle
+
+        return label, handle
+
+    def __setup_currency_spin_box__(self, item: DataclassEditableItem):
+        label = QLabel(self.__get_title__(item.name))
+
+        handle = QDoubleSpinBox()
+        if isinstance(item.options, dict):
+            min_max = item.options['min_max'] if 'min_max' in item.options else [0, 10]
+            handle.setRange(min_max[0], min_max[1])
+            decimals = item.options['decimals'] if 'decimals' in item.options else 2
+            handle.setDecimals(decimals)
+            currency = item.options['currency'] if 'currency' in item.options else ''
+            handle.setPrefix(currency)
+            separate = item.options['separate'] if 'separate' in item.options else False
+            handle.setGroupSeparatorShown(separate)
+        handle.setValue(item.value / 100)
         handle.setEnabled(item.editable)
         item.handle = handle
 
@@ -470,3 +508,10 @@ class DataclassEditWidget(QWidget):
         item.handle = handle
 
         return vertical_layout, handle
+
+    @staticmethod
+    def __setup_vertical_spacer__():
+        label = QLabel('')
+        handle = QSpacerItem(20, 445, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # handle.setAlignment( Qt.AlignmentFlag.AlignTop)
+        return label, handle
