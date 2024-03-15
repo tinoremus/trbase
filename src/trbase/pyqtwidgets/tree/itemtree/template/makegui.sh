@@ -1,0 +1,1 @@
+pyuic6 -x ui_templateapp.ui -o ui_templateapp.py
